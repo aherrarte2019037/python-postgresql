@@ -9,6 +9,13 @@ DATABASE_URL = "postgres://mjrpzdyy:6foY-FOw2jzKTWHFcLpNZmAiuRVz23gd@bubble.db.e
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
+# Función para ejecutar una consulta en la base de datos
+def execute_query(query):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            return cur.fetchall()
+
 # Función para crear una cuenta de usuario utilizando el procedimiento almacenado en PostgreSQL
 def create_account_db(username, role, password):    
     # Validación del rol del usuario
@@ -69,7 +76,6 @@ def take_order_db(mesa_id, usuario_id, detalles_pedido):
                 # Llamar al procedimiento almacenado
                 cur.callproc('tomar_pedido', [mesa_id, usuario_id, detalles_pedido_json])
                 conn.commit()
-                print("Pedido ingresado exitosamente.")
                 return True
     except Exception as e:
         print(f"Error al tomar el pedido: {e}")

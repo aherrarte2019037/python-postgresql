@@ -38,7 +38,8 @@ CREATE TABLE platos_bebidas (
     plato_bebida_id SERIAL PRIMARY KEY,
     nombre VARCHAR(255) NOT NULL,
     descripcion TEXT,
-    precio DECIMAL(10, 2) NOT NULL
+    precio DECIMAL(10, 2) NOT NULL,
+    tipo VARCHAR(50) NOT NULL
 );
 
 -- Creación de la tabla Items del Pedido
@@ -127,23 +128,27 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Procedimiento para ingresar un pedido
-CREATE OR REPLACE FUNCTION tomar_pedido(mesa_id INT, usuario_id INT, detalles_pedido JSON)
+CREATE OR REPLACE FUNCTION tomar_pedido(mesa_id_param INT, usuario_id_param INT, detalles_pedido JSON)
 RETURNS VOID AS $$
 DECLARE
-    pedido_id INT;
+    local_pedido_id INT;  -- Renombrar la variable local para evitar ambigüedad
 BEGIN
     -- Verificar si hay un pedido abierto para la mesa
-    SELECT pedido_id INTO pedido_id FROM pedidos WHERE mesa_id = mesa_id AND estado = 'abierto' LIMIT 1;
+    SELECT pedido_id INTO local_pedido_id
+    FROM pedidos
+    WHERE mesa_id = mesa_id_param AND estado = 'abierto' LIMIT 1;
 
     -- Si no existe un pedido abierto, crear uno nuevo
-    IF pedido_id IS NULL THEN
-        INSERT INTO pedidos (mesa_id, usuario_id, estado) VALUES (mesa_id, usuario_id, 'abierto') RETURNING pedido_id INTO pedido_id;
+    IF local_pedido_id IS NULL THEN
+        INSERT INTO pedidos (mesa_id, usuario_id, estado) 
+        VALUES (mesa_id_param, usuario_id_param, 'abierto') 
+        RETURNING pedido_id INTO local_pedido_id;  -- Usar la variable local renombrada
     END IF;
 
     -- Insertar los detalles del pedido
     FOR i IN 0 .. json_array_length(detalles_pedido) - 1 LOOP
         INSERT INTO items_pedido (pedido_id, plato_bebida_id, cantidad)
-        VALUES (pedido_id, (detalles_pedido->i->>'plato_bebida_id')::INT, (detalles_pedido->i->>'cantidad')::INT);
+        VALUES (local_pedido_id, (detalles_pedido->i->>'plato_bebida_id')::INT, (detalles_pedido->i->>'cantidad')::INT);
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;
@@ -160,3 +165,84 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER log_after_close AFTER UPDATE ON pedidos
 FOR EACH ROW WHEN (NEW.estado = 'cerrado')
 EXECUTE FUNCTION log_pedido_cerrado();
+
+-- Procedimiento para añadir un área
+CREATE OR REPLACE FUNCTION add_area(nombre VARCHAR, es_fumadores BOOLEAN)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO areas (nombre, es_fumadores) VALUES (nombre, es_fumadores);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Procedimiento para añadir una mesa
+CREATE OR REPLACE FUNCTION add_mesa(area_id INTEGER, capacidad INTEGER, es_móvil BOOLEAN)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO mesas (area_id, capacidad, es_móvil) VALUES (area_id, capacidad, es_móvil);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Procedimiento para añadir un plato o bebida
+CREATE OR REPLACE FUNCTION add_plato_bebida(nombre VARCHAR, descripcion TEXT, precio DECIMAL, tipo VARCHAR)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO platos_bebidas (nombre, descripcion, precio, tipo) VALUES (nombre, descripcion, precio, tipo);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Procedimiento para mostrar los platillos pendientes
+CREATE OR REPLACE FUNCTION mostrar_platillos_pendientes()
+RETURNS TABLE(plato_bebida_id INT, nombre VARCHAR, cantidad INT, hora TIMESTAMP) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT pb.plato_bebida_id, pb.nombre, ip.cantidad, p.fecha_hora
+    FROM pedidos p
+    JOIN items_pedido ip ON p.pedido_id = ip.pedido_id
+    JOIN platos_bebidas pb ON pb.plato_bebida_id = ip.plato_bebida_id
+    WHERE pb.tipo = 'Plato' AND p.estado = 'abierto'
+    ORDER BY p.fecha_hora;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Procedimiento para mostrar las bebidas pendientes
+CREATE OR REPLACE FUNCTION mostrar_bebidas_pendientes()
+RETURNS TABLE(plato_bebida_id INT, nombre VARCHAR, cantidad INT, hora TIMESTAMP) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT pb.plato_bebida_id, pb.nombre, ip.cantidad, p.fecha_hora
+    FROM pedidos p
+    JOIN items_pedido ip ON p.pedido_id = ip.pedido_id
+    JOIN platos_bebidas pb ON pb.plato_bebida_id = ip.plato_bebida_id
+    WHERE pb.tipo = 'Bebida' AND p.estado = 'abierto'
+    ORDER BY p.fecha_hora;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Procedimiento para obtener los detalles de un pedido
+CREATE OR REPLACE FUNCTION obtener_detalles_pedido(pedido_id_param INT)
+RETURNS TABLE(producto VARCHAR, cantidad INT, precio_unitario DECIMAL, subtotal DECIMAL) AS $$
+BEGIN
+    RETURN QUERY 
+    SELECT pb.nombre, ip.cantidad, pb.precio, (ip.cantidad * pb.precio) AS subtotal
+    FROM items_pedido ip
+    JOIN platos_bebidas pb ON ip.plato_bebida_id = pb.plato_bebida_id
+    WHERE ip.pedido_id = pedido_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Insertar datos de prueba
+SELECT add_area('Terraza', FALSE);
+SELECT add_area('Bar Interior', FALSE);
+SELECT add_area('Zona de Fumadores', TRUE);
+SELECT add_area('Salón Privado', FALSE);
+
+SELECT add_mesa(1, 4, TRUE);
+SELECT add_mesa(1, 2, TRUE);
+SELECT add_mesa(2, 6, FALSE);
+SELECT add_mesa(3, 4, TRUE);
+SELECT add_mesa(4, 8, TRUE);
+
+SELECT add_plato_bebida('Hamburguesa con Queso', 'Hamburguesa de carne de res con queso cheddar, lechuga, tomate y salsa especial', 8.50, 'Plato');
+SELECT add_plato_bebida('Espagueti a la Boloñesa', 'Espagueti servido con una rica salsa boloñesa casera', 12.00, 'Plato');
+SELECT add_plato_bebida('Margarita', 'Cóctel clásico con tequila, triple sec y jugo de lima', 7.00, 'Bebida');
+SELECT add_plato_bebida('Jugo de Naranja Natural', 'Jugo recién exprimido de naranjas seleccionadas', 4.00, 'Bebida');
