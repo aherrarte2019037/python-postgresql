@@ -82,11 +82,12 @@ CREATE TABLE encuestas (
 -- Creación de la tabla Quejas
 CREATE TABLE quejas (
     queja_id SERIAL PRIMARY KEY,
-    cliente_id INTEGER NOT NULL,
+    cliente VARCHAR(255) NOT NULL,
+    usuario_id INTEGER NOT NULL,
     fecha_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     motivo VARCHAR(255) NOT NULL,
     clasificacion INTEGER CHECK (clasificacion BETWEEN 1 AND 5),
-    FOREIGN KEY (cliente_id) REFERENCES clientes(cliente_id)
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(usuario_id)
 );
 
 CREATE OR REPLACE FUNCTION encrypt_password()
@@ -283,6 +284,104 @@ BEGIN
     WHERE fecha_hora::DATE BETWEEN fecha_inicio AND fecha_fin
     GROUP BY EXTRACT(HOUR FROM fecha_hora)
     ORDER BY cantidad_pedidos DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION promedio_tiempo_comida()
+RETURNS TABLE(capacidad INT, tiempo_promedio VARCHAR) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT m.capacidad, CAST(TO_CHAR(AVG(p.fecha_hora_cierre - p.fecha_hora), 'HH24:MI') AS VARCHAR) AS tiempo_promedio
+    FROM pedidos p
+    JOIN mesas m ON p.mesa_id = m.mesa_id
+    WHERE p.fecha_hora_cierre IS NOT NULL
+    GROUP BY m.capacidad
+    ORDER BY m.capacidad;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION guardar_encuesta(pedido_id INT, amabilidad INT, exactitud INT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    INSERT INTO encuestas (pedido_id, calificacion_amabilidad, calificacion_exactitud)
+    VALUES (pedido_id, amabilidad, exactitud);
+    
+    RETURN TRUE;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error al guardar la encuesta: %', SQLERRM;
+        RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION reporte_quejas_por_persona(fecha_inicio DATE, fecha_fin DATE)
+RETURNS TABLE(persona VARCHAR, cantidad_quejas BIGINT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT u.nombre AS persona, COUNT(*) AS cantidad_quejas
+    FROM quejas q
+    JOIN usuarios u ON u.usuario_id = q.usuario_id
+    WHERE q.fecha_hora BETWEEN fecha_inicio AND fecha_fin
+    GROUP BY u.nombre
+    ORDER BY cantidad_quejas DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION reporte_quejas_por_plato(fecha_inicio DATE, fecha_fin DATE)
+RETURNS TABLE(nombre_plato VARCHAR, cantidad_quejas BIGINT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT pl.nombre, COUNT(q.queja_id) AS cantidad_quejas
+    FROM quejas q
+    JOIN platos_bebidas pl ON q.plato_bebida_id = pl.plato_bebida_id
+    WHERE q.fecha_hora BETWEEN fecha_inicio AND fecha_fin
+    GROUP BY pl.nombre
+    ORDER BY cantidad_quejas DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION reporte_eficiencia_meseros()
+RETURNS TABLE(mesero_id INT, mes VARCHAR, amabilidad_promedio NUMERIC, exactitud_promedio NUMERIC) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.usuario_id AS mesero_id,
+        CAST(TO_CHAR(p.fecha_hora, 'YYYY-MM') AS VARCHAR) AS mes,
+        AVG(e.calificacion_amabilidad) AS amabilidad_promedio,
+        AVG(e.calificacion_exactitud) AS exactitud_promedio
+    FROM pedidos p
+    JOIN encuestas e ON p.pedido_id = e.pedido_id
+    JOIN usuarios u ON p.usuario_id = u.usuario_id
+    WHERE p.fecha_hora >= CURRENT_DATE - INTERVAL '6 months'
+      AND u.rol = 'mesero'
+    GROUP BY p.usuario_id, TO_CHAR(p.fecha_hora, 'YYYY-MM')
+    ORDER BY p.usuario_id, mes;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION registrar_queja(cliente VARCHAR, usuario_id INT, motivo VARCHAR, clasificacion INT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Insertar la nueva queja en la tabla 'quejas'
+    INSERT INTO quejas (cliente, usuario_id, motivo, clasificacion)
+    VALUES (cliente, usuario_id, motivo, clasificacion);
+    
+    RETURN TRUE;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Retornar FALSE en caso de error
+        RAISE NOTICE 'Error al registrar la queja: %', SQLERRM;
+        RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION listar_meseros()
+RETURNS TABLE(usuario_id INT, nombre VARCHAR) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT u.usuario_id, u.nombre
+    FROM usuarios u
+    WHERE u.rol = 'mesero';
 END;
 $$ LANGUAGE plpgsql;
 

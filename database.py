@@ -8,7 +8,7 @@ DATABASE_URL_TEST = "postgres://cnzksmzc:NQkZJq3F3zLe6bZAIqZqIEqeLmLR8bjA@kala.d
 
 # Función para obtener una conexión a la base de datos
 def get_connection():
-    return psycopg2.connect(DATABASE_URL_TEST)
+    return psycopg2.connect(DATABASE_URL)
 
 # Función para ejecutar una consulta en la base de datos
 def execute_query(query):

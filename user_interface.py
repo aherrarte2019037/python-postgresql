@@ -12,7 +12,8 @@ def role_menu(user_id, role):
             print("4. Quejas agrupadas por persona en rango de fecha")
             print("5. Quejas agrupadas por platos en un rango de fecha")
             print("6. Encuestas agrupados por persona por mes de los ultimos 6 meses")
-            print("7. Salir")
+            print("7. Registrar queja")
+            print("8. Salir")
         elif role == 'mesero':
             print("1. Tomar pedido")
             print("2. Pantalla de Cocina")
@@ -40,18 +41,16 @@ def role_menu(user_id, role):
         elif choice == '2' and role == 'admin':
             show_peak_hours()
         elif choice == '3' and role == 'admin':
-            print("Funcionalidad aún no implementada.")
-            input("Presione Enter para continuar...")
+            show_average_meal_time()
         elif choice == '4' and role == 'admin':
-            print("Funcionalidad aún no implementada.")
-            input("Presione Enter para continuar...")
+            show_complaints_by_person()
         elif choice == '5' and role == 'admin':
-            print("Funcionalidad aún no implementada.")
-            input("Presione Enter para continuar...")
+            show_complaints_by_dish()
         elif choice == '6' and role == 'admin':
-            print("Funcionalidad aún no implementada.")
-            input("Presione Enter para continuar...")
+            show_waitstaff_efficiency()
         elif choice == '7' and role == 'admin':
+            register_complaint()
+        elif choice == '8' and role == 'admin':
             clear_console()
             return
         else:
@@ -245,6 +244,8 @@ def generate_bill():
             choice = input("Seleccione método de pago: ")
             payment_methods = { '1': 'Efectivo', '2': 'Tarjeta', '3': 'Cheque' }
             payment_method = payment_methods.get(choice, 'Efectivo')
+
+            prompt_survey(pedido_id)
             
             bill_details = execute_query(f"SELECT * FROM obtener_detalles_pedido({pedido_id});")
             clear_console()
@@ -318,6 +319,140 @@ def show_peak_hours():
 
     input("Presione Enter para continuar...")
     clear_console()
+
+def show_average_meal_time():
+    clear_console()
+    print("--- Tiempo Promedio de Comida ---")
+    try:
+        average_times = execute_query("SELECT * FROM promedio_tiempo_comida();")
+        if average_times:
+            print("{:<15} {:<15}".format("Capacidad", "Tiempo Promedio"))
+            for capacity, avg_time in average_times:
+                print("{:<15} {:<15}".format(capacity, avg_time))
+        else:
+            print("No hay datos disponibles para el rango de fechas proporcionado.")
+    except Exception as e:
+        print(f"Error al obtener el tiempo promedio de comida: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
+
+def save_survey(pedido_id, amabilidad, exactitud):
+    execute_query(f"SELECT guardar_encuesta({pedido_id}, {amabilidad}, {exactitud});")
+
+def prompt_survey(pedido_id):
+    clear_console()
+    print("\n--- Encuesta de Satisfacción del Cliente ---")
+    try:
+        amabilidad = int(input("Califique la amabilidad del mesero (1-5): "))
+        exactitud = int(input("Califique la exactitud del pedido (1-5): "))
+        if save_survey(pedido_id, amabilidad, exactitud):
+            print("Gracias por completar la encuesta.")
+        else:
+            print("Error al guardar la encuesta.")
+    except ValueError:
+        print("Error: Por favor, introduzca un número válido.")
+
+def show_complaints_by_person():
+    clear_console()
+    print("--- Reporte de Quejas por Persona ---")
+    start_date = input("Ingrese la fecha de inicio (YYYY-MM-DD): ")
+    end_date = input("Ingrese la fecha de fin (YYYY-MM-DD): ")
+    clear_console()
+    
+    try:
+        complaints_report = execute_query(f"SELECT * FROM reporte_quejas_por_persona('{start_date}', '{end_date}');")
+        if complaints_report:
+            print("{:<30} {:<15}".format("Persona", "Cantidad de Quejas"))
+            for person, count in complaints_report:
+                # Asegurarse de que los valores son presentables
+                person_display = person if person else "Desconocido"
+                count_display = count if count is not None else 0
+                print("{:<30} {:<15}".format(person_display, count_display))
+        else:
+            print("No hay quejas registradas en el rango de fechas proporcionado.")
+    except Exception as e:
+        print(f"Error al obtener el reporte de quejas: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
+
+def show_complaints_by_dish():
+    clear_console()
+    print("--- Reporte de Quejas por Plato ---")
+    start_date = input("Ingrese la fecha de inicio (YYYY-MM-DD): ")
+    end_date = input("Ingrese la fecha de fin (YYYY-MM-DD): ")
+    
+    try:
+        complaints_report = execute_query(f"SELECT * FROM reporte_quejas_por_plato('{start_date}', '{end_date}');")
+        if complaints_report:
+            print("{:<30} {:<15}".format("Plato", "Cantidad de Quejas"))
+            for dish, count in complaints_report:
+                print("{:<30} {:<15}".format(dish, count))
+        else:
+            print("No hay quejas registradas para los platos en el rango de fechas proporcionado.")
+    except Exception as e:
+        print(f"Error al obtener el reporte de quejas por plato: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
+
+def show_waitstaff_efficiency():
+    clear_console()
+    print("--- Reporte de Eficiencia de Meseros ---")
+    
+    try:
+        efficiency_report = execute_query("SELECT * FROM reporte_eficiencia_meseros();")
+        if efficiency_report:
+            print("{:<10} {:<10} {:<20} {:<20}".format("Mesero ID", "Mes", "Promedio Amabilidad", "Promedio Exactitud"))
+            for mesero_id, mes, amabilidad_promedio, exactitud_promedio in efficiency_report:
+                print("{:<10} {:<10} {:<20} {:<20}".format(mesero_id, mes, amabilidad_promedio, exactitud_promedio))
+        else:
+            print("No hay datos de eficiencia para mostrar.")
+    except Exception as e:
+        print(f"Error al obtener el reporte de eficiencia de meseros: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
+
+def register_complaint():
+    meseros = list_waitstaff()
+    if not meseros:
+        print("Operación cancelada.")
+        return
+
+    usuario_id = input("Ingrese el ID del mesero al que dirige la queja: ")
+    cliente = input("Ingrese el nombre del cliente: ")
+    motivo = input("Ingrese el motivo de la queja: ")
+    clasificacion = int(input("Indique la severidad de la queja (1-5): "))
+
+    try:
+        result = execute_query(f"SELECT registrar_queja('{cliente}', {usuario_id}, '{motivo}', {clasificacion});")
+        if result[0][0]:
+            print("Queja registrada exitosamente.")
+        else:
+            print("No se pudo registrar la queja.")
+    except Exception as e:
+        print(f"Error al registrar la queja: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
+
+def list_waitstaff():
+    clear_console()
+    print("\nListando meseros disponibles...")
+    try:
+        meseros = execute_query("SELECT usuario_id, nombre FROM listar_meseros();")
+        if meseros:
+            for mesero in meseros:
+                print(f"Mesero: {mesero[0]}, Nombre: {mesero[1]}")
+            return meseros
+        else:
+            print("No se encontraron meseros.")
+            return None
+    except Exception as e:
+        print(f"Error al listar meseros: {e}")
+        return None
 
 # Función auxiliar para limpiar la consola
 def clear_console():
