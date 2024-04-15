@@ -6,16 +6,20 @@ def role_menu(user_id, role):
     while True:
         print(f"--- Menú {role.capitalize()} ---")
         if role == 'admin':
-            print("1. Gestionar usuarios")
-            print("2. Ver reportes")
-            print("3. Configuraciones del sistema")
+            print("1. Platos mas pedidos por rango de fecha")
+            print("2. Horario de mayor demanda por rango de fecha")
+            print("3. Promedio en que se tardan los clientes en comer")
+            print("4. Quejas agrupadas por persona en rango de fecha")
+            print("5. Quejas agrupadas por platos en un rango de fecha")
+            print("6. Encuestas agrupados por persona por mes de los ultimos 6 meses")
+            print("7. Salir")
         elif role == 'mesero':
             print("1. Tomar pedido")
             print("2. Pantalla de Cocina")
             print("3. Pantalla de Bar")
             print("4. Imprimir pedido")
             print("5. Generar factura")
-        print("6. Salir")
+            print("6. Salir")
 
         choice = input("Seleccione una opción: ")
         if choice == '1' and role == 'mesero':
@@ -28,7 +32,26 @@ def role_menu(user_id, role):
             select_and_show_order_details()
         elif choice == '5' and role == 'mesero':
             generate_bill()
-        elif choice == '6':
+        elif choice == '6' and role == 'mesero':
+            clear_console()
+            return
+        elif choice == '1' and role == 'admin':
+            generate_most_ordered_dishes_report()
+        elif choice == '2' and role == 'admin':
+            show_peak_hours()
+        elif choice == '3' and role == 'admin':
+            print("Funcionalidad aún no implementada.")
+            input("Presione Enter para continuar...")
+        elif choice == '4' and role == 'admin':
+            print("Funcionalidad aún no implementada.")
+            input("Presione Enter para continuar...")
+        elif choice == '5' and role == 'admin':
+            print("Funcionalidad aún no implementada.")
+            input("Presione Enter para continuar...")
+        elif choice == '6' and role == 'admin':
+            print("Funcionalidad aún no implementada.")
+            input("Presione Enter para continuar...")
+        elif choice == '7' and role == 'admin':
             clear_console()
             return
         else:
@@ -253,10 +276,48 @@ def generate_bill():
     input("Presione Enter para continuar...")
     clear_console()
 
-
 def close_order(pedido_id):
     result = execute_query(f"SELECT cerrar_pedido({pedido_id});")
     return result[0][0] if result else False
+
+def generate_most_ordered_dishes_report():
+    clear_console()
+    print("\n--- Reporte de Platos Más Pedidos ---")
+    start_date = input("Ingrese la fecha de inicio (YYYY-MM-DD): ")
+    end_date = input("Ingrese la fecha de fin (YYYY-MM-DD): ")
+    try:
+        report = execute_query(f"SELECT * FROM reporte_items_mas_pedidos('{start_date}', '{end_date}');")
+        clear_console()
+        print("Platos más pedidos desde [{}] hasta [{}]:".format(start_date, end_date))
+        print("")
+        for item in report:
+            print(f"Plato: {item[1]}, Cantidad Total: {item[2]}")
+    except Exception as e:
+        print(f"Error al generar el reporte: {e}")
+    input("\nPresione Enter para continuar...")
+    clear_console()
+
+def show_peak_hours():
+    clear_console()
+    print("--- Horario de Mayor Demanda ---")
+    start_date = input("Ingrese la fecha de inicio (YYYY-MM-DD): ")
+    end_date = input("Ingrese la fecha de fin (YYYY-MM-DD): ")
+    
+    try:
+        peak_hours = execute_query(f"SELECT * FROM horario_mayor_demanda('{start_date}', '{end_date}');")
+        if peak_hours:
+            clear_console()
+            print("Horas con mayor número de pedidos:")
+            print("{:<10} {:<15}".format("Hora", "Cantidad de Pedidos"))
+            for hour, count in peak_hours:
+                print("{:<10} {:<15}".format(hour, count))
+        else:
+            print("No hay pedidos en el rango de fechas proporcionado.")
+    except Exception as e:
+        print(f"Error al obtener el horario de mayor demanda: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
 
 # Función auxiliar para limpiar la consola
 def clear_console():

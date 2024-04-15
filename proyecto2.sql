@@ -260,6 +260,32 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION reporte_items_mas_pedidos(fecha_inicio DATE, fecha_fin DATE)
+RETURNS TABLE(plato_bebida_id INT, nombre VARCHAR, cantidad_total BIGINT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT ip.plato_bebida_id, pb.nombre, SUM(ip.cantidad) AS cantidad_total
+    FROM items_pedido ip
+    JOIN pedidos p ON ip.pedido_id = p.pedido_id
+    JOIN platos_bebidas pb ON ip.plato_bebida_id = pb.plato_bebida_id
+    WHERE p.fecha_hora BETWEEN fecha_inicio AND fecha_fin
+    GROUP BY ip.plato_bebida_id, pb.nombre
+    ORDER BY cantidad_total DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION horario_mayor_demanda(fecha_inicio DATE, fecha_fin DATE)
+RETURNS TABLE(hora INT, cantidad_pedidos BIGINT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT CAST(EXTRACT(HOUR FROM fecha_hora) AS INTEGER) AS hora, COUNT(*) AS cantidad_pedidos
+    FROM pedidos
+    WHERE fecha_hora::DATE BETWEEN fecha_inicio AND fecha_fin
+    GROUP BY EXTRACT(HOUR FROM fecha_hora)
+    ORDER BY cantidad_pedidos DESC;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Insertar datos de prueba
 SELECT add_area('Terraza', FALSE);
 SELECT add_area('Bar Interior', FALSE);
