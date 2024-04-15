@@ -28,6 +28,7 @@ CREATE TABLE pedidos (
     mesa_id INTEGER NOT NULL,
     usuario_id INTEGER NOT NULL,
     fecha_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_hora_cierre TIMESTAMP,
     estado VARCHAR(100) NOT NULL,
     FOREIGN KEY (mesa_id) REFERENCES mesas(mesa_id),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(usuario_id)
@@ -153,19 +154,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger para registrar cada pedido cerrado
-CREATE OR REPLACE FUNCTION log_pedido_cerrado()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO log_pedidos (pedido_id, fecha_hora_cierre) VALUES (NEW.pedido_id, NOW());
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER log_after_close AFTER UPDATE ON pedidos
-FOR EACH ROW WHEN (NEW.estado = 'cerrado')
-EXECUTE FUNCTION log_pedido_cerrado();
-
 -- Procedimiento para añadir un área
 CREATE OR REPLACE FUNCTION add_area(nombre VARCHAR, es_fumadores BOOLEAN)
 RETURNS VOID AS $$
@@ -219,6 +207,17 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Procedimiento para obtener los detalles de un pedido
+CREATE OR REPLACE FUNCTION listar_pedidos_activos()
+RETURNS TABLE(pedido_id INT, fecha_hora TIMESTAMP, estado VARCHAR) AS $$
+BEGIN
+    RETURN QUERY 
+    SELECT pedidos.pedido_id, pedidos.fecha_hora, pedidos.estado
+    FROM pedidos
+    WHERE pedidos.estado = 'abierto'
+    ORDER BY pedidos.fecha_hora DESC;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION obtener_detalles_pedido(pedido_id_param INT)
 RETURNS TABLE(producto VARCHAR, cantidad INT, precio_unitario DECIMAL, subtotal DECIMAL) AS $$
 BEGIN
@@ -227,6 +226,22 @@ BEGIN
     FROM items_pedido ip
     JOIN platos_bebidas pb ON ip.plato_bebida_id = pb.plato_bebida_id
     WHERE ip.pedido_id = pedido_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Procedimiento para cerrar un pedido
+CREATE OR REPLACE FUNCTION cerrar_pedido(pedido_id_param INT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    UPDATE pedidos
+    SET estado = 'cerrado', fecha_hora_cierre = NOW()
+    WHERE pedido_id = pedido_id_param AND estado = 'abierto';
+    
+    IF FOUND THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 

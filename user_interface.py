@@ -13,7 +13,8 @@ def role_menu(user_id, role):
             print("2. Pantalla de Cocina")
             print("3. Pantalla de Bar")
             print("4. Imprimir pedido")
-        print("5. Salir")
+            print("5. Generar factura")
+        print("6. Salir")
 
         choice = input("Seleccione una opción: ")
         if choice == '1' and role == 'mesero':
@@ -23,8 +24,10 @@ def role_menu(user_id, role):
         elif choice == '3' and role == 'mesero':
             bar_screen()
         elif choice == '4' and role == 'mesero':
-            show_order_details()
-        elif choice == '5':
+            select_and_show_order_details()
+        elif choice == '5' and role == 'mesero':
+            generate_bill()
+        elif choice == '6':
             clear_console()
             return
         else:
@@ -145,6 +148,40 @@ def bar_screen():
     input("\nPresione Enter para continuar...")
     clear_console()
 
+def list_active_orders():
+    print("--- Pedidos Activos ---")
+    try:
+        active_orders = execute_query("SELECT * FROM listar_pedidos_activos();")
+        if active_orders:
+            for order in active_orders:
+                print(f"[{order[0]}] Pedido, Fecha/Hora: {order[1]}")
+            return active_orders
+        else:
+            print("No hay pedidos activos.")
+            return None
+    except Exception as e:
+        print(f"Error al listar pedidos activos: {e}")
+        return None
+
+def select_and_show_order_details():
+    clear_console()
+    orders = list_active_orders()
+    if not orders:
+        input("Presione Enter para continuar...")
+        return
+    
+    pedido_id = input("\nIngrese el pedido que desea ver: ")
+    try:
+        pedido_id = int(pedido_id)
+        show_order_details(pedido_id)
+    except ValueError:
+        print("Por favor, ingrese un número válido.")
+    except Exception as e:
+        print(f"Error al mostrar detalles del pedido: {e}")
+
+    input("Presione Enter para continuar...")
+    clear_console()
+
 def show_order_details(pedido_id):
     clear_console()
     print("--- Detalles del Pedido ---")
@@ -152,7 +189,7 @@ def show_order_details(pedido_id):
         order_details = execute_query(f"SELECT * FROM obtener_detalles_pedido({pedido_id});")
         if order_details:
             total = 0
-            print(f"Pedido ID: {pedido_id}")
+            print(f"Pedido: {pedido_id}")
             print("{:<30} {:<10} {:<15} {:<10}".format("Producto", "Cantidad", "Precio Unit.", "Subtotal"))
             for detail in order_details:
                 print("{:<30} {:<10} ${:<14.2f} ${:<10.2f}".format(detail[0], detail[1], detail[2], detail[3]))
@@ -163,7 +200,46 @@ def show_order_details(pedido_id):
     except Exception as e:
         print(f"Error al recuperar detalles del pedido: {e}")
 
+def generate_bill():
+    clear_console()
+    orders = list_active_orders()
+    if not orders:
+        input("Presione Enter para continuar...")
+        return
+
+    pedido_id = input("\nIngrese el pedido para cerrar: ")
+    try:
+        pedido_id = int(pedido_id)
+        if close_order(pedido_id):
+            print("Pedido cerrado correctamente.")
+            # Mostrar métodos de pago
+            print("Métodos de pago:")
+            print("1. Efectivo")
+            print("2. Tarjeta")
+            print("3. Cheque")
+            choice = input("Seleccione método de pago: ")
+            payment_methods = { '1': 'Efectivo', '2': 'Tarjeta', '3': 'Cheque' }
+            payment_method = payment_methods.get(choice, 'Efectivo')
+            
+            # Suponer la función para obtener detalles de factura
+            bill_details = execute_query(f"SELECT * FROM obtener_detalles_pedido({pedido_id});")
+            print("Detalle de la Factura:")
+            for item in bill_details:
+                print(f"Producto: {item[0]}, Cantidad: {item[1]}, Precio Unitario: {item[2]}, Subtotal: {item[3]}")
+            print(f"Método de Pago: {payment_method}")
+        else:
+            print("No se pudo cerrar el pedido. Asegúrese de que el ID sea correcto y el pedido esté abierto.")
+    except ValueError:
+        print("Por favor, ingrese un número válido.")
+    except Exception as e:
+        print(f"Error al cerrar pedido: {e}")
+
     input("Presione Enter para continuar...")
+    clear_console()
+
+def close_order(pedido_id):
+    result = execute_query(f"SELECT cerrar_pedido({pedido_id});")
+    return result[0][0] if result else False
 
 # Función auxiliar para limpiar la consola
 def clear_console():
