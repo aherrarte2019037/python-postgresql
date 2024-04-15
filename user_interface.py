@@ -1,5 +1,6 @@
 import os
 from database import execute_query, get_connection, take_order_db
+from decimal import Decimal
 
 def role_menu(user_id, role):
     while True:
@@ -168,6 +169,7 @@ def select_and_show_order_details():
     orders = list_active_orders()
     if not orders:
         input("Presione Enter para continuar...")
+        clear_console()
         return
     
     pedido_id = input("\nIngrese el pedido que desea ver: ")
@@ -211,9 +213,9 @@ def generate_bill():
     try:
         pedido_id = int(pedido_id)
         if close_order(pedido_id):
+            clear_console()
             print("Pedido cerrado correctamente.")
-            # Mostrar métodos de pago
-            print("Métodos de pago:")
+            print("\nMétodos de pago:")
             print("1. Efectivo")
             print("2. Tarjeta")
             print("3. Cheque")
@@ -221,12 +223,26 @@ def generate_bill():
             payment_methods = { '1': 'Efectivo', '2': 'Tarjeta', '3': 'Cheque' }
             payment_method = payment_methods.get(choice, 'Efectivo')
             
-            # Suponer la función para obtener detalles de factura
             bill_details = execute_query(f"SELECT * FROM obtener_detalles_pedido({pedido_id});")
+            clear_console()
             print("Detalle de la Factura:")
+            total = Decimal('0.00')
+            print("{:<30} {:<10} {:<15} {:<10}".format("Producto", "Cantidad", "Precio Unit.", "Subtotal"))
             for item in bill_details:
-                print(f"Producto: {item[0]}, Cantidad: {item[1]}, Precio Unitario: {item[2]}, Subtotal: {item[3]}")
-            print(f"Método de Pago: {payment_method}")
+                subtotal = Decimal(item[1]) * Decimal(item[2])
+                print("{:<30} {:<10} ${:<14.2f} ${:<10.2f}".format(item[0], item[1], item[2], subtotal))
+                total += subtotal
+            propina = total * Decimal('0.10')
+            total_final = total + propina
+            print("\nSubtotal: ${:.2f}".format(total))
+            print("Propina (10%): ${:.2f}".format(propina))
+            print("Total: ${:.2f}".format(total_final))
+            print("Método de Pago: {}".format(payment_method))
+
+            if execute_query(f"SELECT insertar_pago({pedido_id}, {total_final}, '{payment_method}');")[0][0]:
+                print("Pago registrado correctamente.")
+            else:
+                print("Error al registrar el pago.")
         else:
             print("No se pudo cerrar el pedido. Asegúrese de que el ID sea correcto y el pedido esté abierto.")
     except ValueError:
@@ -236,6 +252,7 @@ def generate_bill():
 
     input("Presione Enter para continuar...")
     clear_console()
+
 
 def close_order(pedido_id):
     result = execute_query(f"SELECT cerrar_pedido({pedido_id});")

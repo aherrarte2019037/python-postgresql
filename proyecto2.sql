@@ -245,6 +245,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Procedimiento para añadir un pago
+CREATE OR REPLACE FUNCTION insertar_pago(pedido_id_param INT, monto_param DECIMAL, tipo_param VARCHAR)
+RETURNS BOOLEAN AS $$
+BEGIN
+    INSERT INTO pagos (pedido_id, monto, tipo)
+    VALUES (pedido_id_param, monto_param, tipo_param);
+    RETURN TRUE;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error al insertar el pago: %', SQLERRM;
+        RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Insertar datos de prueba
 SELECT add_area('Terraza', FALSE);
 SELECT add_area('Bar Interior', FALSE);
