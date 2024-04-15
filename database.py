@@ -4,10 +4,11 @@ import json
 
 # Se define la URL de la conexión a la base de datos
 DATABASE_URL = "postgres://mjrpzdyy:6foY-FOw2jzKTWHFcLpNZmAiuRVz23gd@bubble.db.elephantsql.com/mjrpzdyy"
+DATABASE_URL_TEST = "postgres://cnzksmzc:NQkZJq3F3zLe6bZAIqZqIEqeLmLR8bjA@kala.db.elephantsql.com/cnzksmzc"
 
 # Función para obtener una conexión a la base de datos
 def get_connection():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL_TEST)
 
 # Función para ejecutar una consulta en la base de datos
 def execute_query(query):
